@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>업무 타임라인</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f5f3;
+  --surface: #ffffff;
+  --surface2: #f9f9f8;
+  --border: #e5e5e3;
+  --border2: #d0d0ce;
+  --text: #1a1a18;
+  --text2: #5a5a58;
+  --text3: #9a9a98;
+  --accent: #2563eb;
+  --accent-light: #eff6ff;
+  --cat-prod: #0f7b5a;
+  --cat-prod-light: #ecfdf5;
+  --cat-mkt: #7c3aed;
+  --cat-mkt-light: #f5f3ff;
+  --cat-dist: #c2410c;
+  --cat-dist-light: #fff7ed;
+  --status-plan: #9a9a98;
+  --status-plan-bg: #f3f3f1;
+  --status-active: #2563eb;
+  --status-active-bg: #eff6ff;
+  --status-done: #059669;
+  --status-done-bg: #ecfdf5;
+  --status-late: #dc2626;
+  --status-late-bg: #fef2f2;
+  --row-h: 40px;
+  --label-w: 260px;
+  --header-h: 56px;
+  --radius: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text); font-size: 13px; min-height: 100vh; }
+
+/* ── LAYOUT ── */
+#app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+#topbar { display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 52px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#topbar h1 { font-size: 15px; font-weight: 600; color: var(--text); margin-right: 8px; white-space: nowrap; }
+.tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+.tb-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--text2); font-size: 12px; cursor: pointer; white-space: nowrap; transition: background .12s, border-color .12s; font-family: inherit; }
+.tb-btn:hover { background: var(--surface2); border-color: var(--border2); }
+.tb-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tb-btn.primary:hover { opacity: .9; }
+.tb-btn svg { flex-shrink: 0; }
+.toggle-group { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.toggle-group button { padding: 5px 12px; border: none; background: var(--surface); color: var(--text2); cursor: pointer; font-size: 12px; font-family: inherit; transition: background .12s; }
+.toggle-group button.active { background: var(--accent); color: #fff; }
+#tb-spacer { flex: 1; }
+
+/* ── MAIN AREA ── */
+#main { display: flex; flex: 1; overflow: hidden; }
+#sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+#sidebar-header { padding: 14px 14px 8px; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
+.cat-item { padding: 0 8px 4px; }
+.cat-toggle { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: var(--radius); cursor: pointer; color: var(--text2); font-size: 12px; font-weight: 500; transition: background .1s; user-select: none; }
+.cat-toggle:hover { background: var(--surface2); }
+.cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cat-toggle .arrow { margin-left: auto; font-size: 10px; transition: transform .2s; }
+.cat-toggle.open .arrow { transform: rotate(90deg); }
+.sub-list { padding: 0 0 4px 22px; display: none; }
+.sub-list.open { display: block; }
+.sub-item { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: var(--radius); cursor: pointer; font-size: 12px; color: var(--text2); transition: background .1s; }
+.sub-item:hover { background: var(--surface2); }
+.sub-item.active { background: var(--accent-light); color: var(--accent); }
+#add-cat-btn { margin: 8px 14px; padding: 7px 10px; border: 1px dashed var(--border2); border-radius: var(--radius); background: none; color: var(--text3); cursor: pointer; font-size: 12px; font-family: inherit; text-align: left; transition: all .12s; }
+#add-cat-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── GANTT AREA ── */
+#gantt-wrap { flex: 1; overflow: auto; position: relative; }
+#gantt { min-width: 900px; }
+
+/* header */
+#gantt-head { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--border2); display: flex; }
+.gh-label { width: var(--label-w); flex-shrink: 0; border-right: 1px solid var(--border); padding: 0 14px; display: flex; align-items: flex-end; padding-bottom: 6px; font-size: 11px; color: var(--text3); font-weight: 500; }
+#gh-timeline { flex: 1; overflow: hidden; }
+.gh-months { display: flex; border-bottom: 1px solid var(--border); }
+.gh-month { text-align: center; font-size: 11px; font-weight: 600; color: var(--text2); padding: 6px 0 4px; border-right: 1px solid var(--border); flex-shrink: 0; }
+.gh-weeks { display: flex; }
+.gh-week { text-align: center; font-size: 10px; color: var(--text3); padding: 3px 0; border-right: 1px solid var(--border); flex-shrink: 0; }
+
+/* body */
+#gantt-body { display: flex; }
+#label-col { width: var(--label-w); flex-shrink: 0; border-right: 1px solid var(--border); }
+#chart-col { flex: 1; position: relative; }
+
+/* category rows */
+.cat-group { border-bottom: 1px solid var(--border); }
+.cat-row { height: 32px; display: flex; align-items: center; padding: 0 14px; gap: 8px; background: var(--surface2); cursor: pointer; user-select: none; }
+.cat-row-dot { width: 8px; height: 8px; border-radius: 50%; }
+.cat-row-name { font-size: 12px; font-weight: 600; color: var(--text); flex: 1; }
+.cat-row-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+.cat-row:hover .cat-row-actions { opacity: 1; }
+.cat-row-btn { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); color: var(--text2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; line-height: 1; font-family: inherit; }
+.cat-row-btn:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.task-row { height: var(--row-h); display: flex; align-items: center; padding: 0 14px; gap: 8px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .1s; }
+.task-row:hover { background: var(--accent-light); }
+.task-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.task-name { font-size: 12px; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-owner { font-size: 11px; color: var(--text3); white-space: nowrap; }
+.add-task-row { height: 32px; display: flex; align-items: center; padding: 0 14px; gap: 6px; cursor: pointer; color: var(--text3); font-size: 12px; transition: color .1s, background .1s; }
+.add-task-row:hover { color: var(--accent); background: var(--accent-light); }
+
+/* chart grid + bars */
+.chart-cat-group { }
+.chart-cat-spacer { height: 32px; background: var(--surface2); border-bottom: 1px solid var(--border); position: relative; }
+.chart-task-row { height: var(--row-h); position: relative; border-bottom: 1px solid var(--border); }
+.chart-add-row { height: 32px; }
+.grid-line-month { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border); z-index: 1; pointer-events: none; }
+.grid-line-week { position: absolute; top: 0; bottom: 0; width: 1px; background: #f0f0ee; z-index: 1; pointer-events: none; }
+.today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); z-index: 5; pointer-events: none; }
+.today-label { position: absolute; top: 0; transform: translateX(-50%); font-size: 10px; font-weight: 600; color: var(--accent); background: var(--accent-light); padding: 1px 4px; border-radius: 3px; white-space: nowrap; }
+.gantt-bar { position: absolute; top: 6px; height: 28px; border-radius: 5px; display: flex; align-items: center; padding: 0 8px; font-size: 11px; font-weight: 500; cursor: pointer; z-index: 3; white-space: nowrap; overflow: hidden; transition: filter .12s, transform .1s; user-select: none; }
+.gantt-bar:hover { filter: brightness(.93); transform: translateY(-1px); }
+.gantt-bar .bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gantt-bar .bar-progress { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; opacity: .25; pointer-events: none; }
+
+/* status colors */
+.s-plan  { background: var(--status-plan-bg);  color: var(--status-plan);  border: 1px solid #d8d8d6; }
+.s-active{ background: var(--status-active-bg); color: var(--status-active); border: 1px solid #bfdbfe; }
+.s-done  { background: var(--status-done-bg);   color: var(--status-done);  border: 1px solid #a7f3d0; }
+.s-late  { background: var(--status-late-bg);   color: var(--status-late);  border: 1px solid #fecaca; }
+
+/* ── MODAL ── */
+#modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 100; display: none; align-items: center; justify-content: center; }
+#modal-overlay.open { display: flex; }
+#modal { background: var(--surface); border-radius: 10px; width: 460px; max-width: calc(100vw - 32px); box-shadow: 0 8px 32px rgba(0,0,0,.14); overflow: hidden; animation: modalIn .18s ease; }
+@keyframes modalIn { from { transform: scale(.96) translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+#modal-header { display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+#modal-title { font-size: 14px; font-weight: 600; flex: 1; }
+#modal-close { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border); background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--text2); }
+#modal-close:hover { background: var(--surface2); }
+#modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 13px; max-height: 70vh; overflow-y: auto; }
+.form-row { display: flex; flex-direction: column; gap: 5px; }
+.form-row label { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; }
+.form-row input, .form-row select, .form-row textarea {
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+  font-size: 13px; font-family: inherit; color: var(--text); background: var(--surface);
+  transition: border-color .12s; outline: none;
+}
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: var(--accent); }
+.form-row textarea { resize: vertical; min-height: 64px; }
+.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.status-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.status-btn { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 12px; font-family: inherit; color: var(--text2); transition: all .12s; }
+.status-btn.active-plan  { background: var(--status-plan-bg);  color: var(--status-plan);  border-color: #d8d8d6; }
+.status-btn.active-active{ background: var(--status-active-bg); color: var(--status-active); border-color: #bfdbfe; }
+.status-btn.active-done  { background: var(--status-done-bg);   color: var(--status-done);  border-color: #a7f3d0; }
+.status-btn.active-late  { background: var(--status-late-bg);   color: var(--status-late);  border-color: #fecaca; }
+.progress-row { display: flex; align-items: center; gap: 10px; }
+.progress-row input[type=range] { flex: 1; }
+.progress-val { font-size: 13px; font-weight: 600; color: var(--accent); min-width: 36px; text-align: right; }
+#modal-footer { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); justify-content: flex-end; }
+.modal-del-btn { margin-right: auto; padding: 7px 14px; border-radius: var(--radius); border: 1px solid var(--status-late); background: none; color: var(--status-late); cursor: pointer; font-size: 12px; font-family: inherit; }
+.modal-del-btn:hover { background: var(--status-late-bg); }
+.modal-cancel { padding: 7px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: none; color: var(--text2); cursor: pointer; font-size: 13px; font-family: inherit; }
+.modal-save { padding: 7px 18px; border-radius: var(--radius); border: none; background: var(--accent); color: #fff; cursor: pointer; font-size: 13px; font-family: inherit; font-weight: 500; }
+.modal-save:hover { opacity: .9; }
+
+/* ── TOAST ── */
+#toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(60px); background: var(--text); color: #fff; padding: 9px 18px; border-radius: 999px; font-size: 13px; z-index: 200; transition: transform .25s ease; pointer-events: none; white-space: nowrap; }
+#toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ── SUMMARY BAR ── */
+#summary-bar { display: flex; align-items: center; gap: 16px; padding: 6px 16px; background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0; font-size: 12px; color: var(--text2); }
+.sum-item { display: flex; align-items: center; gap: 5px; }
+.sum-dot { width: 8px; height: 8px; border-radius: 50%; }
+.sum-spacer { flex: 1; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <h1>📋 업무 타임라인</h1>
+  <div class="tb-sep"></div>
+  <div class="toggle-group">
+    <button id="btn-month" class="active" onclick="setView('month')">월</button>
+    <button id="btn-week" onclick="setView('week')">주</button>
+  </div>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="gotoToday()">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.5l2 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+    오늘
+  </button>
+  <button class="tb-btn" onclick="extendTimeline()">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    기간 연장
+  </button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="importCSV()">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8.5V12.5a1 1 0 001 1h8a1 1 0 001-1V8.5M8 2v8M5.5 7.5L8 10l2.5-2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    불러오기
+  </button>
+  <button class="tb-btn" onclick="exportCSV()">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8.5V12.5a1 1 0 001 1h8a1 1 0 001-1V8.5M8 10V2M5.5 4.5L8 2l2.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    내보내기
+  </button>
+  <div id="tb-spacer"></div>
+  <button class="tb-btn primary" onclick="openNewTaskModal()">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    업무 추가
+  </button>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="sidebar-header">업무 분류</div>
+    <div id="sidebar-cats"></div>
+    <button id="add-cat-btn" onclick="addCategory()">+ 분류 추가</button>
+  </div>
+
+  <!-- GANTT -->
+  <div id="gantt-wrap">
+    <div id="gantt">
+      <div id="gantt-head">
+        <div class="gh-label">업무명 / 담당자</div>
+        <div id="gh-timeline">
+          <div class="gh-months" id="gh-months"></div>
+          <div class="gh-weeks" id="gh-weeks"></div>
+        </div>
+      </div>
+      <div id="gantt-body">
+        <div id="label-col"></div>
+        <div id="chart-col"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SUMMARY BAR -->
+<div id="summary-bar">
+  <span class="sum-item"><span class="sum-dot" style="background:var(--status-plan)"></span><span id="s-plan">0 예정</span></span>
+  <span class="sum-item"><span class="sum-dot" style="background:var(--status-active)"></span><span id="s-active">0 진행중</span></span>
+  <span class="sum-item"><span class="sum-dot" style="background:var(--status-done)"></span><span id="s-done">0 완료</span></span>
+  <span class="sum-item"><span class="sum-dot" style="background:var(--status-late)"></span><span id="s-late">0 지연</span></span>
+  <div class="sum-spacer"></div>
+  <span style="color:var(--text3)">마지막 저장: <span id="last-saved">—</span></span>
+</div>
+
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div id="modal">
+    <div id="modal-header">
+      <span id="modal-title">업무 추가</span>
+      <button id="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body">
+      <div class="form-row">
+        <label>업무명 *</label>
+        <input type="text" id="f-name" placeholder="업무명을 입력하세요">
+      </div>
+      <div class="form-row">
+        <label>분류</label>
+        <select id="f-cat"></select>
+      </div>
+      <div class="form-row-2">
+        <div class="form-row">
+          <label>시작일 *</label>
+          <input type="date" id="f-start">
+        </div>
+        <div class="form-row">
+          <label>종료일 *</label>
+          <input type="date" id="f-end">
+        </div>
+      </div>
+      <div class="form-row">
+        <label>담당자</label>
+        <input type="text" id="f-owner" placeholder="담당자 이름">
+      </div>
+      <div class="form-row">
+        <label>상태</label>
+        <div class="status-btns" id="f-status-btns">
+          <button class="status-btn" data-s="plan" onclick="selectStatus('plan')">예정</button>
+          <button class="status-btn" data-s="active" onclick="selectStatus('active')">진행중</button>
+          <button class="status-btn" data-s="done" onclick="selectStatus('done')">완료</button>
+          <button class="status-btn" data-s="late" onclick="selectStatus('late')">지연</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>진행률</label>
+        <div class="progress-row">
+          <input type="range" id="f-progress" min="0" max="100" value="0" oninput="document.getElementById('f-prog-val').textContent=this.value+'%'">
+          <span class="progress-val" id="f-prog-val">0%</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>메모</label>
+        <textarea id="f-memo" placeholder="선택 사항"></textarea>
+      </div>
+    </div>
+    <div id="modal-footer">
+      <button class="modal-del-btn" id="modal-del-btn" onclick="deleteTask()" style="display:none">삭제</button>
+      <button class="modal-cancel" onclick="closeModal()">취소</button>
+      <button class="modal-save" onclick="saveTask()">저장</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleCSV(event)">
+<div id="toast"></div>
+
+<script>
+// ── STATE ──
+const CELL_W_MONTH = 80;
+const CELL_W_WEEK  = 40;
+
+let viewMode = 'month';
+let editingTaskId = null;
+let selectedStatus = 'plan';
+
+// Timeline: 2026-04 ~ 2027-04 (13 months = 57 weeks)
+let timeStart = new Date('2026-04-01');
+let timeEnd   = new Date('2027-04-30');
+
+const CAT_COLORS = {
+  '생산': { color: '#0f7b5a', light: '#ecfdf5' },
+  '마케팅': { color: '#7c3aed', light: '#f5f3ff' },
+  '유통': { color: '#c2410c', light: '#fff7ed' },
+};
+const DEFAULT_COLORS = [
+  { color: '#0369a1', light: '#e0f2fe' },
+  { color: '#7c3aed', light: '#f5f3ff' },
+  { color: '#b45309', light: '#fef3c7' },
+  { color: '#0f766e', light: '#ccfbf1' },
+  { color: '#be185d', light: '#fce7f3' },
+];
+
+let state = {
+  categories: [
+    { id: 'cat-1', name: '생산', color: '#0f7b5a', light: '#ecfdf5', open: true },
+    { id: 'cat-2', name: '마케팅', color: '#7c3aed', light: '#f5f3ff', open: true },
+    { id: 'cat-3', name: '유통', color: '#c2410c', light: '#fff7ed', open: true },
+  ],
+  tasks: [
+    { id:'t1', catId:'cat-1', name:'원자재 조달 계획', owner:'구매팀', start:'2026-04-01', end:'2026-05-31', status:'active', progress:60, memo:'' },
+    { id:'t2', catId:'cat-1', name:'설비 유지보수', owner:'시설팀', start:'2026-05-01', end:'2026-06-30', status:'plan', progress:0, memo:'' },
+    { id:'t3', catId:'cat-1', name:'생산 라인 증설', owner:'생산팀', start:'2026-06-01', end:'2026-09-30', status:'plan', progress:0, memo:'' },
+    { id:'t4', catId:'cat-1', name:'품질관리 시스템 도입', owner:'QA팀', start:'2026-08-01', end:'2026-10-31', status:'plan', progress:0, memo:'' },
+    { id:'t5', catId:'cat-2', name:'상반기 광고 집행', owner:'광고팀', start:'2026-04-01', end:'2026-06-30', status:'active', progress:45, memo:'' },
+    { id:'t6', catId:'cat-2', name:'신제품 론칭 이벤트', owner:'이벤트팀', start:'2026-07-01', end:'2026-08-31', status:'plan', progress:0, memo:'' },
+    { id:'t7', catId:'cat-2', name:'하반기 프로모션', owner:'마케팅팀', start:'2026-09-01', end:'2026-11-30', status:'plan', progress:0, memo:'' },
+    { id:'t8', catId:'cat-2', name:'연말 캠페인', owner:'디지털팀', start:'2026-11-01', end:'2026-12-31', status:'plan', progress:0, memo:'' },
+    { id:'t9', catId:'cat-3', name:'배송 시스템 개선', owner:'물류팀', start:'2026-04-01', end:'2026-07-31', status:'active', progress:30, memo:'' },
+    { id:'t10', catId:'cat-3', name:'신규 판매처 발굴', owner:'영업팀', start:'2026-05-01', end:'2026-08-31', status:'plan', progress:0, memo:'' },
+    { id:'t11', catId:'cat-3', name:'재고관리 자동화', owner:'IT팀', start:'2026-07-01', end:'2026-10-31', status:'plan', progress:0, memo:'' },
+    { id:'t12', catId:'cat-3', name:'해외 유통망 검토', owner:'글로벌팀', start:'2026-10-01', end:'2027-01-31', status:'plan', progress:0, memo:'' },
+  ]
+};
+
+// ── TIMELINE HELPERS ──
+function getMonths() {
+  const months = [];
+  let d = new Date(timeStart.getFullYear(), timeStart.getMonth(), 1);
+  while (d <= timeEnd) {
+    months.push(new Date(d));
+    d.setMonth(d.getMonth() + 1);
+  }
+  return months;
+}
+
+function getWeeks() {
+  const weeks = [];
+  let d = new Date(timeStart);
+  // align to Monday
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  while (d <= timeEnd) {
+    weeks.push(new Date(d));
+    d.setDate(d.getDate() + 7);
+  }
+  return weeks;
+}
+
+function dateToX(dateStr) {
+  const d = new Date(dateStr);
+  const total = timeEnd - timeStart;
+  const offset = d - timeStart;
+  const ratio = Math.max(0, Math.min(1, offset / total));
+  return ratio * totalWidth();
+}
+
+function totalWidth() {
+  if (viewMode === 'month') return getMonths().length * CELL_W_MONTH;
+  return getWeeks().length * CELL_W_WEEK;
+}
+
+const STATUS_LABEL = { plan:'예정', active:'진행중', done:'완료', late:'지연' };
+
+// ── RENDER ──
+function render() {
+  renderSidebar();
+  renderGanttHead();
+  renderGanttBody();
+  renderSummary();
+  saveLocal();
+}
+
+function renderSidebar() {
+  const el = document.getElementById('sidebar-cats');
+  el.innerHTML = state.categories.map(cat => {
+    const tasks = state.tasks.filter(t => t.catId === cat.id);
+    return `
+    <div class="cat-item">
+      <div class="cat-toggle ${cat.open?'open':''}" onclick="toggleCat('${cat.id}')">
+        <span class="cat-dot" style="background:${cat.color}"></span>
+        <span>${cat.name}</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="sub-list ${cat.open?'open':''}">
+        ${tasks.map(t=>`
+          <div class="sub-item" onclick="openEditTaskModal('${t.id}')">
+            <span style="width:6px;height:6px;border-radius:50%;background:${statusColor(t.status)};flex-shrink:0;display:inline-block"></span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name}</span>
+          </div>`).join('')}
+        <div class="sub-item" style="color:var(--text3)" onclick="openNewTaskModalForCat('${cat.id}')">
+          <span>+ 업무 추가</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderGanttHead() {
+  const months = getMonths();
+  const weeks = getWeeks();
+  const mEl = document.getElementById('gh-months');
+  const wEl = document.getElementById('gh-weeks');
+
+  if (viewMode === 'month') {
+    mEl.style.display = 'flex';
+    wEl.style.display = 'none';
+    mEl.innerHTML = months.map(m =>
+      `<div class="gh-month" style="width:${CELL_W_MONTH}px;min-width:${CELL_W_MONTH}px">
+        ${m.getFullYear() === new Date().getFullYear() ? '' : m.getFullYear()+'년 '}${m.getMonth()+1}월
+      </div>`
+    ).join('');
+  } else {
+    mEl.style.display = 'flex';
+    wEl.style.display = 'flex';
+    // months row spans weeks
+    let mHtml = '';
+    months.forEach(m => {
+      const weeksInMonth = weeks.filter(w => {
+        const we = new Date(w); we.setDate(we.getDate()+6);
+        return (w.getMonth() === m.getMonth() && w.getFullYear() === m.getFullYear()) ||
+               (we.getMonth() === m.getMonth() && we.getFullYear() === m.getFullYear());
+      });
+      const cnt = Math.max(1, weeksInMonth.length);
+      mHtml += `<div class="gh-month" style="width:${cnt*CELL_W_WEEK}px;min-width:${cnt*CELL_W_WEEK}px">
+        ${m.getFullYear()}년 ${m.getMonth()+1}월</div>`;
+    });
+    mEl.innerHTML = mHtml;
+    wEl.innerHTML = weeks.map(w =>
+      `<div class="gh-week" style="width:${CELL_W_WEEK}px;min-width:${CELL_W_WEEK}px">${w.getMonth()+1}/${w.getDate()}</div>`
+    ).join('');
+  }
+}
+
+function renderGanttBody() {
+  const tw = totalWidth();
+  const labelCol = document.getElementById('label-col');
+  const chartCol = document.getElementById('chart-col');
+  chartCol.style.width = tw + 'px';
+  chartCol.style.minWidth = tw + 'px';
+
+  let labelHTML = '';
+  let chartHTML = '';
+
+  // grid lines
+  let gridLines = '';
+  if (viewMode === 'month') {
+    getMonths().forEach((m, i) => {
+      const x = i * CELL_W_MONTH;
+      gridLines += `<div class="grid-line-month" style="left:${x}px"></div>`;
+    });
+  } else {
+    getWeeks().forEach((w, i) => {
+      const isMonthStart = i === 0 || w.getDate() <= 7;
+      gridLines += `<div class="${isMonthStart?'grid-line-month':'grid-line-week'}" style="left:${i*CELL_W_WEEK}px"></div>`;
+    });
+  }
+
+  // today line
+  const now = new Date();
+  if (now >= timeStart && now <= timeEnd) {
+    const tx = dateToX(now.toISOString().slice(0,10));
+    const todayStr = `${now.getMonth()+1}월 ${now.getDate()}일`;
+    gridLines += `<div class="today-line" style="left:${tx}px"><div class="today-label" style="left:${tx}px">${todayStr}</div></div>`;
+  }
+
+  state.categories.forEach(cat => {
+    // cat header
+    labelHTML += `
+      <div class="cat-group">
+        <div class="cat-row" onclick="toggleCat('${cat.id}')">
+          <span class="cat-row-dot" style="background:${cat.color}"></span>
+          <span class="cat-row-name">${cat.name}</span>
+          <div class="cat-row-actions">
+            <button class="cat-row-btn" title="업무 추가" onclick="event.stopPropagation();openNewTaskModalForCat('${cat.id}')">+</button>
+            <button class="cat-row-btn" title="분류 삭제" onclick="event.stopPropagation();deleteCat('${cat.id}')">×</button>
+          </div>
+        </div>`;
+
+    chartHTML += `<div class="chart-cat-group"><div class="chart-cat-spacer">${gridLines}</div>`;
+
+    if (cat.open) {
+      const tasks = state.tasks.filter(t => t.catId === cat.id);
+      tasks.forEach(t => {
+        const x1 = dateToX(t.start);
+        const x2 = dateToX(t.end);
+        const w  = Math.max(20, x2 - x1);
+        const sc = 's-' + t.status;
+        const progressW = w * t.progress / 100;
+
+        labelHTML += `
+          <div class="task-row" onclick="openEditTaskModal('${t.id}')">
+            <span class="task-dot" style="background:${statusColor(t.status)}"></span>
+            <span class="task-name">${t.name}</span>
+            <span class="task-owner">${t.owner||''}</span>
+          </div>`;
+
+        chartHTML += `
+          <div class="chart-task-row">
+            ${gridLines}
+            <div class="gantt-bar ${sc}" style="left:${x1}px;width:${w}px" onclick="openEditTaskModal('${t.id}')" title="${t.name}">
+              <div class="bar-progress" style="width:${progressW}px;background:${statusColor(t.status)}"></div>
+              <span class="bar-label">${t.name}</span>
+            </div>
+          </div>`;
+      });
+
+      // add task row
+      labelHTML += `<div class="add-task-row" onclick="openNewTaskModalForCat('${cat.id}')">＋ 업무 추가</div>`;
+      chartHTML += `<div class="chart-add-row"></div>`;
+    }
+
+    labelHTML += `</div>`;
+    chartHTML += `</div>`;
+  });
+
+  labelCol.innerHTML = labelHTML;
+  chartCol.innerHTML = chartHTML;
+}
+
+function renderSummary() {
+  const counts = { plan:0, active:0, done:0, late:0 };
+  state.tasks.forEach(t => counts[t.status]++);
+  document.getElementById('s-plan').textContent = counts.plan + ' 예정';
+  document.getElementById('s-active').textContent = counts.active + ' 진행중';
+  document.getElementById('s-done').textContent = counts.done + ' 완료';
+  document.getElementById('s-late').textContent = counts.late + ' 지연';
+}
+
+function statusColor(s) {
+  return { plan:'#9a9a98', active:'#2563eb', done:'#059669', late:'#dc2626' }[s] || '#9a9a98';
+}
+
+// ── CONTROLS ──
+function setView(v) {
+  viewMode = v;
+  document.getElementById('btn-month').classList.toggle('active', v==='month');
+  document.getElementById('btn-week').classList.toggle('active', v==='week');
+  render();
+}
+
+function gotoToday() {
+  const now = new Date();
+  if (now < timeStart || now > timeEnd) { showToast('현재 날짜가 타임라인 범위 밖입니다'); return; }
+  const x = dateToX(now.toISOString().slice(0,10));
+  document.getElementById('gantt-wrap').scrollLeft = Math.max(0, x - 200);
+}
+
+function extendTimeline() {
+  timeEnd = new Date(timeEnd);
+  timeEnd.setMonth(timeEnd.getMonth() + 6);
+  render();
+  showToast('타임라인이 6개월 연장되었습니다');
+}
+
+function toggleCat(id) {
+  const cat = state.categories.find(c => c.id === id);
+  if (cat) cat.open = !cat.open;
+  render();
+}
+
+function addCategory() {
+  const name = prompt('새 분류 이름을 입력하세요:');
+  if (!name || !name.trim()) return;
+  const idx = state.categories.length % DEFAULT_COLORS.length;
+  state.categories.push({
+    id: 'cat-' + Date.now(),
+    name: name.trim(),
+    color: DEFAULT_COLORS[idx].color,
+    light: DEFAULT_COLORS[idx].light,
+    open: true
+  });
+  render();
+  showToast(`"${name.trim()}" 분류가 추가되었습니다`);
+}
+
+function deleteCat(id) {
+  const cat = state.categories.find(c => c.id === id);
+  if (!cat) return;
+  if (!confirm(`"${cat.name}" 분류와 모든 하위 업무를 삭제할까요?`)) return;
+  state.categories = state.categories.filter(c => c.id !== id);
+  state.tasks = state.tasks.filter(t => t.catId !== id);
+  render();
+  showToast('분류가 삭제되었습니다');
+}
+
+// ── MODAL ──
+function populateCatSelect(selectedId) {
+  const sel = document.getElementById('f-cat');
+  sel.innerHTML = state.categories.map(c =>
+    `<option value="${c.id}" ${c.id===selectedId?'selected':''}>${c.name}</option>`
+  ).join('');
+}
+
+function openNewTaskModal() {
+  editingTaskId = null;
+  selectedStatus = 'plan';
+  document.getElementById('modal-title').textContent = '업무 추가';
+  document.getElementById('modal-del-btn').style.display = 'none';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-owner').value = '';
+  document.getElementById('f-start').value = '2026-04-01';
+  document.getElementById('f-end').value = '2026-04-30';
+  document.getElementById('f-progress').value = 0;
+  document.getElementById('f-prog-val').textContent = '0%';
+  document.getElementById('f-memo').value = '';
+  populateCatSelect(state.categories[0]?.id || '');
+  selectStatus('plan');
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('f-name').focus(), 100);
+}
+
+function openNewTaskModalForCat(catId) {
+  openNewTaskModal();
+  populateCatSelect(catId);
+}
+
+function openEditTaskModal(id) {
+  const t = state.tasks.find(t => t.id === id);
+  if (!t) return;
+  editingTaskId = id;
+  document.getElementById('modal-title').textContent = '업무 수정';
+  document.getElementById('modal-del-btn').style.display = 'block';
+  document.getElementById('f-name').value = t.name;
+  document.getElementById('f-owner').value = t.owner || '';
+  document.getElementById('f-start').value = t.start;
+  document.getElementById('f-end').value = t.end;
+  document.getElementById('f-progress').value = t.progress;
+  document.getElementById('f-prog-val').textContent = t.progress + '%';
+  document.getElementById('f-memo').value = t.memo || '';
+  populateCatSelect(t.catId);
+  selectStatus(t.status);
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function selectStatus(s) {
+  selectedStatus = s;
+  document.querySelectorAll('.status-btn').forEach(btn => {
+    const bs = btn.dataset.s;
+    btn.className = 'status-btn' + (bs === s ? ' active-' + bs : '');
+  });
+}
+
+function saveTask() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { document.getElementById('f-name').focus(); showToast('업무명을 입력하세요'); return; }
+  const start = document.getElementById('f-start').value;
+  const end = document.getElementById('f-end').value;
+  if (!start || !end) { showToast('날짜를 입력하세요'); return; }
+  if (start > end) { showToast('종료일이 시작일보다 앞입니다'); return; }
+
+  const task = {
+    id: editingTaskId || 't' + Date.now(),
+    catId: document.getElementById('f-cat').value,
+    name,
+    owner: document.getElementById('f-owner').value.trim(),
+    start, end,
+    status: selectedStatus,
+    progress: parseInt(document.getElementById('f-progress').value),
+    memo: document.getElementById('f-memo').value.trim(),
+  };
+
+  if (editingTaskId) {
+    const idx = state.tasks.findIndex(t => t.id === editingTaskId);
+    state.tasks[idx] = task;
+    showToast('업무가 수정되었습니다');
+  } else {
+    state.tasks.push(task);
+    showToast('업무가 추가되었습니다');
+  }
+  closeModal();
+  render();
+}
+
+function deleteTask() {
+  if (!editingTaskId) return;
+  const t = state.tasks.find(t => t.id === editingTaskId);
+  if (!confirm(`"${t?.name}" 업무를 삭제할까요?`)) return;
+  state.tasks = state.tasks.filter(t => t.id !== editingTaskId);
+  closeModal();
+  render();
+  showToast('업무가 삭제되었습니다');
+}
+
+// ── IMPORT / EXPORT ──
+function exportCSV() {
+  let csv = '\uFEFF업무명,분류,담당자,시작일,종료일,상태,진행률,메모\n';
+  state.tasks.forEach(t => {
+    const cat = state.categories.find(c => c.id === t.catId);
+    const row = [t.name, cat?.name||'', t.owner, t.start, t.end, STATUS_LABEL[t.status], t.progress+'%', t.memo||''];
+    csv += row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',') + '\n';
+  });
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '업무타임라인_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  showToast('CSV 파일이 다운로드되었습니다');
+}
+
+function importCSV() {
+  document.getElementById('csv-input').click();
+}
+
+function handleCSV(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const lines = ev.target.result.replace(/^\uFEFF/,'').split('\n').filter(l => l.trim());
+    let added = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].match(/("(?:[^"]|"")*"|[^,]+)(?=,|$)/g)?.map(v=>v.replace(/^"|"$/g,'').replace(/""/g,'"')) || [];
+      if (cols.length < 5) continue;
+      const [name,,owner,start,end,,progress,memo] = cols;
+      const catName = cols[1];
+      let cat = state.categories.find(c => c.name === catName);
+      if (!cat) {
+        const idx = state.categories.length % DEFAULT_COLORS.length;
+        cat = { id:'cat-'+Date.now()+i, name:catName, color:DEFAULT_COLORS[idx].color, light:DEFAULT_COLORS[idx].light, open:true };
+        state.categories.push(cat);
+      }
+      const statusMap = {'예정':'plan','진행중':'active','완료':'done','지연':'late'};
+      state.tasks.push({
+        id:'t'+Date.now()+i, catId:cat.id, name:name||'(무제)', owner:owner||'',
+        start:start||'2026-04-01', end:end||'2026-04-30',
+        status:statusMap[cols[5]]||'plan', progress:parseInt(progress)||0, memo:memo||''
+      });
+      added++;
+    }
+    render();
+    showToast(`${added}개 업무를 불러왔습니다`);
+    e.target.value = '';
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+// ── LOCAL STORAGE ──
+function saveLocal() {
+  try {
+    localStorage.setItem('timeline-state', JSON.stringify({ state, timeEnd: timeEnd.toISOString() }));
+    const now = new Date();
+    document.getElementById('last-saved').textContent =
+      `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+  } catch(e) {}
+}
+
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem('timeline-state');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data.state) state = data.state;
+    if (data.timeEnd) timeEnd = new Date(data.timeEnd);
+  } catch(e) {}
+}
+
+// ── TOAST ──
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ── KEYBOARD & OVERLAY ──
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+// ── INIT ──
+loadLocal();
+render();
+gotoToday();
+</script>
+</body>
+</html>
