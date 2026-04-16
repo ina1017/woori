@@ -329,7 +329,7 @@ let selectedStatus = 'plan';
 
 // Timeline: 2026-04 ~ 2027-04 (13 months = 57 weeks)
 let timeStart = new Date('2026-04-01');
-let timeEnd   = new Date('2027-04-30');
+let timeEnd   = new Date('2026-12-31');
 
 const CAT_COLORS = {
   '생산': { color: '#0f7b5a', light: '#ecfdf5' },
@@ -392,15 +392,20 @@ function getWeeks() {
 
 function dateToX(dateStr) {
   const d = new Date(dateStr);
-  const total = timeEnd - timeStart;
-  const offset = d - timeStart;
-  const ratio = Math.max(0, Math.min(1, offset / total));
-  return ratio * totalWidth();
+  const months = getMonths();
+  let mi = months.findIndex(m => m.getFullYear() === d.getFullYear() && m.getMonth() === d.getMonth());
+  if (mi < 0) {
+    if (d < timeStart) return 0;
+    return totalWidth();
+  }
+  const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  const dayOfMonth = d.getDate();
+  const fracInMonth = (dayOfMonth - 1) / daysInMonth;
+  return (mi * 4 + fracInMonth * 4) * CELL_W_WEEK;
 }
 
 function totalWidth() {
-  if (viewMode === 'month') return getMonths().length * CELL_W_MONTH;
-  return getWeeks().length * CELL_W_WEEK;
+  return getMonths().length * 4 * CELL_W_WEEK;
 }
 
 const STATUS_LABEL = { plan:'예정', active:'진행중', done:'완료', late:'지연' };
@@ -441,41 +446,27 @@ function renderSidebar() {
 
 function renderGanttHead() {
   const months = getMonths();
-  const weeks = getWeeks();
   const mEl = document.getElementById('gh-months');
   const wEl = document.getElementById('gh-weeks');
+  mEl.style.display = 'flex';
+  wEl.style.display = 'flex';
 
-  if (viewMode === 'month') {
-    mEl.style.display = 'flex';
-    wEl.style.display = 'none';
-    mEl.innerHTML = months.map(m =>
-      `<div class="gh-month" style="width:${CELL_W_MONTH}px;min-width:${CELL_W_MONTH}px">
-        ${m.getFullYear() === new Date().getFullYear() ? '' : m.getFullYear()+'년 '}${m.getMonth()+1}월
-      </div>`
-    ).join('');
-  } else {
-    mEl.style.display = 'flex';
-    wEl.style.display = 'flex';
-    // months row spans weeks
-    let mHtml = '';
-    months.forEach(m => {
-      const weeksInMonth = weeks.filter(w => {
-        const we = new Date(w); we.setDate(we.getDate()+6);
-        return (w.getMonth() === m.getMonth() && w.getFullYear() === m.getFullYear()) ||
-               (we.getMonth() === m.getMonth() && we.getFullYear() === m.getFullYear());
-      });
-      const cnt = Math.max(1, weeksInMonth.length);
-      mHtml += `<div class="gh-month" style="width:${cnt*CELL_W_WEEK}px;min-width:${cnt*CELL_W_WEEK}px">
-        ${m.getFullYear()}년 ${m.getMonth()+1}월</div>`;
-    });
-    mEl.innerHTML = mHtml;
-    wEl.innerHTML = weeks.map(w =>
-      `<div class="gh-week" style="width:${CELL_W_WEEK}px;min-width:${CELL_W_WEEK}px">${w.getMonth()+1}/${w.getDate()}</div>`
-    ).join('');
-  }
+  mEl.innerHTML = months.map(m => {
+    const w = CELL_W_WEEK * 4;
+    return `<div class="gh-month" style="width:${w}px;min-width:${w}px">${m.getFullYear()}년 ${m.getMonth()+1}월</div>`;
+  }).join('');
+
+  let wHtml = '';
+  months.forEach((m, mi) => {
+    for (let wk = 1; wk <= 4; wk++) {
+      const shade = (mi % 2 === 0) ? '#f9f9f8' : '#f3f3f0';
+      wHtml += `<div class="gh-week" style="width:${CELL_W_WEEK}px;min-width:${CELL_W_WEEK}px;background:${shade}">${wk}주</div>`;
+    }
+  });
+  wEl.innerHTML = wHtml;
 }
 
-function renderGanttBody() {
+  function renderGanttBody() {
   const tw = totalWidth();
   const labelCol = document.getElementById('label-col');
   const chartCol = document.getElementById('chart-col');
@@ -595,9 +586,9 @@ function gotoToday() {
 
 function extendTimeline() {
   timeEnd = new Date(timeEnd);
-  timeEnd.setMonth(timeEnd.getMonth() + 6);
+  timeEnd.setMonth(timeEnd.getMonth() + 3);
   render();
-  showToast('타임라인이 6개월 연장되었습니다');
+  showToast('타임라인이 3개월 연장되었습니다');
 }
 
 function toggleCat(id) {
